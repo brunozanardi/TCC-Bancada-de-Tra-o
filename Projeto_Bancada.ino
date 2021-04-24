@@ -1,102 +1,118 @@
-//int valor = 0;
-String str;
-int tamanho;
-const int Sensor_corrente_controle = A3;
-int mVperAmp = 66; 
+//BIBLIOTECAS
+
+#include <Servo.h>
+#include <Wire.h> 
+#include <HX711_ADC.h>
+#include <EEPROM.h>
+
+//DEFINIÇÃO DOS PINOS ANALóGICOS
+
+const int pitot_tube_pin = A0; //PINO UTILIZADO PELO TUBO DE PITOT
+const int Sensor_tensao_controle = A1; //PINO UTILIZADO PELO SENSOR DE TENSÃO DO SISTEMA DE CONTROLE
+const int Sensor_tensao_potencia = A2;//PINO UTILIZADO PELO SENSOR DE TENSÃO DO SISTEMA DE POTENCIA
+const int Sensor_corrente_controle = A3; //PINO UTILIZADO PELO SENSOR DE CORRENTE DO SISTEMA DE CONTROLE
+const int c_sens = A4; //PINO UTILIZADO PELO SENSOR DE CORRENTE DO SISTEMA DE POTENCIA
+const int LM35 = A5; //PINO UTILIZADO PELO SENSOR DE TEMPERATURA LM35
+
+
+//PARÂMETROS INICIAIS PARA SENSOR DE CORRENTE DO MOTOR ACS758
+
+float volt; //TENSÃO LIDA PELO SENSOR
+float c_value; //VARIáVEL PARA VALOR PARAMETRO DO SENSOR
+float offset_corrente_pot; //VARIÁVEL PARA OFFSET DO SENSOR DE CORRENTE
+float cutOffLimit = 1.00; //VALOR DE CUTOFF (MíNIMO LIDO)
+float quiescent_Output_voltage =0.5; 
+float QOV; //VARIÁVEL QOV
+float cutoff;//VARIÁVEL CUTOFF
+int mVperAmp = 66; //VARIÁVEL QUE DEFINE A CORRENTE PELA TENSÃO
 int RawValue = 2;
-int ACSoffset = 2500;
-double Voltage = 0;
-double Amps = 0;
+int ACSoffset = 2500; //OFFSET PADRÃO DATASHEET
+double Voltage = 0; //DEFININDO VALOR INICIAL PARA TENSÃO
+double Amps = 0; //DEFININDO VALOR INICIAL PARA CORRENTE
 float vetCorrente[300];
 
-float Load_Cell();
-float RPM_3144E();
-float pitot();
-float sensor_corrente_controle();
-float sensor_corrente_potencia();
-float tensao_bateria_controle();
-float tensao_bateria_potencia();
-float temperatura_bateria();
+//PARAMETROS PARA SENSORES DE TENSÃO DO SISTEMA DE POTENCIA E DE CONTROLE
 
-const int Sensor_tensao_controle = A2;
-const int Sensor_tensao_potencia = A1;//PINO ANALÓGICO EM QUE O SENSOR ESTÁ CONECTADO
- 
 float tensaoEntrada = 0.0; //VARIÁVEL PARA ARMAZENAR O VALOR DE TENSÃO DE ENTRADA DO SENSOR
-float tensaoMedida = 0.0;//VARIÁVEL PARA ARMAZENAR O VALOR DA TENSÃO MEDIDA PELO SENSOR
-float offset_pot=0.6;
-float offset_cont=0.6;//VARIAVEL DE OFFSET DE TENSAO DO SENSOR DE TENSAO DA BATERIA DE POT
+float tensaoMedida = 0.0;//VARIÁVEL PARA ARMAZENAR O VALOR DA TENSÃO DE SAÍDA 
+float offset_pot=0.95;//VARIAVEL DE OFFSET DE TENSAO DO SENSOR DE TENSAO DA BATERIA DE POTENCIA
+float offset_cont=0.7;//VARIAVEL DE OFFSET DE TENSAO DO SENSOR DE TENSAO DA BATERIA DE CONTROLE
 float valorR1 = 30000.0; //VALOR DO RESISTOR 1 DO DIVISOR DE TENSÃO
 float valorR2 = 7500.0; // VALOR DO RESISTOR 2 DO DIVISOR DE TENSÃO
 int leituraSensor = 0; //VARIÁVEL PARA ARMAZENAR A LEITURA DO PINO ANALÓGICO
 
+//PARAMETROS PARA O SENSOR DE VELOCIDADE DO AR
 
-int massa;
-int rotacao;
-int velocidade;
-float tensao_bateria_control;
-float tensao_bateria_pot;
-float corrente_bateria_control;
-
-
-//Biblioteca Pitot
-float V_0 = 5.0;
-float rho = 1.274;
-
-int offset = 0;
+float pitot();//FUNÇÃO DO SENSOR DE VELOCIDADE
+float V_0 = 5.0; //TENSÃO DE ALIMENTAÇÃO
+float rho = 1.274; //RHO
+int offset = 0; //VALOR DE OFFSET
 int offset_size = 10;
 int veloc_mean_size = 20;
 int zero_span = 2;
+int velocidade;
 
-//Variavel para Sensor de Corrente de Controle
-int corrente_controle;
+//PARÂMETROS PARA O SENSOR DE ROTAÇÃO 3144E
 
-//Variavel para Sensor de Tensão de Controle
-int tensao_controle = 2;
-
-
-//Variavel para Sensor de Tensão de Potência
-int tensao_potencia;
-
-//Biblioteca para RPM
-#include <Wire.h> 
 #define TEST_DELAY   999
 volatile int counter = 2;
-int RPM;
+int RPM; //VARIÁVEL RPM
 
-//Biblioteca para Célula de Carga
-#include <HX711_ADC.h>
-#include <EEPROM.h>
+//PARÂMETROS PARA O SENSOR DE MEDIÇÃO DE TORQUE (CÉLULA DE CARGA)
 
-//Pinos para Célula de Carga
 const int HX711_dout = 4; //mcu > HX711 dout pin
 const int HX711_sck = 5; //mcu > HX711 sck pin
-
-//Amplificador HX711
-HX711_ADC LoadCell(HX711_dout, HX711_sck);
-
+HX711_ADC LoadCell(HX711_dout, HX711_sck);//Amplificador HX711
 const int calVal_eepromAdress = 0;
 long t;
 float peso;
 
-//Sensor de temperatura LM35
-const int LM35 = A5; // Define o pino que lera a saída do LM35
+//PARÂMETROS PARA O SENSOR DE TEMPERATURA LM35
 float temperatura; // Variável que armazenará a temperatura medida
 
+
+//VARIÁVEIS CRIADAS PARA A SAÍDA DA PORTA SERIAL
+
+float massa;
+float rotacao;
+float corrente_bateria_control;
+float corrente_bateria_potencia;
+float tensao_bateria_control; 
+float tensao_bateria_pot; 
+
+//FUNÇõES CRIADAS PARA CADA UM DOS SENSORES
+  //PARA VERIFICAR CADA TENSÃO VÁ ATé O FINAL DO CODIGO
+
+float tensao_bateria_controle();//FUNÇÃO PARA A TENSÃO DA BATERIA DE CONTROLE
+float tensao_bateria_potencia();///FUNÇÃO PARA TENSÃO DA BATERIA DE POTENCIA
+float sensor_corrente_potencia(); 
+float Load_Cell();
+float RPM_3144E();
+float sensor_corrente_controle();
+float temperatura_bateria();
+
 void setup() {
-  pinMode(Sensor_tensao_controle, INPUT); //DEFINE O PINO COMO ENTRADA
+  //DEFINIÇÃO DO MODO DE CADA UM DOS PINOS DE INPUT
+  pinMode(c_sens, INPUT);
+  pinMode(Sensor_tensao_controle, INPUT); 
   pinMode(Sensor_tensao_potencia, INPUT);
   pinMode(Sensor_corrente_controle, INPUT);
+  
+  //PORTA SERIAL DEFINIDA COMO 9600 BPS
   Serial.begin(9600);
   delay(10);
+
+  //INTERRUPÇÃO SETADA PARA O SETOR DE ROTAÇÃO
   attachInterrupt(0,count,RISING);
   for (int ii=0; ii<offset_size; ii++){
     offset += analogRead(A0)-(1023/2);
   }
   offset /= offset_size;
-  
+
+  //SETUP PARA A CÉLULA DE CARGA
   LoadCell.begin();
   float calibrationValue; // calibration value (see example file "Calibration.ino")
-  calibrationValue = 696.0; // uncomment this if you want to set the calibration value in the sketch
+  calibrationValue = -450.15; // uncomment this if you want to set the calibration value in the sketch
 #if defined(ESP8266)|| defined(ESP32)
   //EEPROM.begin(512); // uncomment this if you use ESP8266/ESP32 and want to fetch the calibration value from eeprom
 #endif
@@ -117,14 +133,20 @@ void setup() {
 
   
 void loop() {
-  // put your main code here, to run repeatedly:
-  massa = Load_Cell();
-  rotacao = RPM_3144E();
-  velocidade = pitot();
-  tensao_bateria_control = tensao_bateria_controle();
-  tensao_bateria_pot = tensao_bateria_potencia();
-  corrente_bateria_control = sensor_corrente_controle();
-  temperatura = temperatura_bateria();
+
+  //PUXANDO VALORES DAS FUNÇÕES E COLOCANDO EM VARIÁVEIS
+  
+  massa = Load_Cell(); //EXTRAÇÃO DO VALOR DE SAÍDA DA FUNÇÃO DA CÉLULA DE CARGA
+  rotacao = RPM_3144E(); //EXTRAÇÃO DO VALOR DE SAÍDA DA FUNÇÃO DE RPM
+  velocidade = pitot(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR TUBO DE PITOT
+  tensao_bateria_control = tensao_bateria_controle(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TENSÃO
+  tensao_bateria_pot = tensao_bateria_potencia(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TENSÃO
+  corrente_bateria_control = sensor_corrente_controle(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE CORRENTE
+  temperatura = temperatura_bateria(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TENSÃO
+  corrente_bateria_potencia = sensor_corrente_potencia(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TEMPERATURA
+
+  //COLOCANDO VARIÁVEIS NA PORTA SERIAL
+  
   Serial.print(massa);
   Serial.print(",");
   Serial.print(rotacao);
@@ -138,6 +160,8 @@ void loop() {
   Serial.print(corrente_bateria_control);
   Serial.print(",");
   Serial.print(temperatura);
+  Serial.print(",");
+  Serial.print(corrente_bateria_potencia);
   Serial.print("\n");
   delay(100);
 }
@@ -157,7 +181,7 @@ float Load_Cell(){
       //Serial.println(i);
       newDataReady = 0;
       t = millis();
-      return i;
+      return -i;
     }
   }
 
@@ -199,7 +223,7 @@ float pitot(){
   
 // average a few ADC readings for stability
   for (int ii=0;ii<veloc_mean_size;ii++){
-    adc_avg+= analogRead(A0)-offset;
+    adc_avg+= analogRead(pitot_tube_pin)-offset;
   }
   adc_avg/=veloc_mean_size;
   
@@ -240,4 +264,14 @@ float sensor_corrente_controle(){
 float temperatura_bateria(){
   temperatura = (float(analogRead(LM35))*5/(1023))/0.01;
   return temperatura;
+}
+
+float sensor_corrente_potencia(){
+  QOV = quiescent_Output_voltage*5.0;
+  cutoff = 0.04/cutOffLimit;
+  volt = (5.0 / 1023.0)*analogRead(c_sens);
+  volt = volt - QOV + 0.007;
+  offset_corrente_pot = -2.00;
+  c_value = (volt/0.04 - (offset_corrente_pot))*-1;
+  return c_value;
 }
