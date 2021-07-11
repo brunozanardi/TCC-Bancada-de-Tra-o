@@ -35,8 +35,8 @@ float vetCorrente[300];
 
 float tensaoEntrada = 0.0; //VARIÁVEL PARA ARMAZENAR O VALOR DE TENSÃO DE ENTRADA DO SENSOR
 float tensaoMedida = 0.0;//VARIÁVEL PARA ARMAZENAR O VALOR DA TENSÃO DE SAÍDA 
-float offset_pot=0.95;//VARIAVEL DE OFFSET DE TENSAO DO SENSOR DE TENSAO DA BATERIA DE POTENCIA
-float offset_cont=0.7;//VARIAVEL DE OFFSET DE TENSAO DO SENSOR DE TENSAO DA BATERIA DE CONTROLE
+float offset_pot=2.58;//VARIAVEL DE OFFSET DE TENSAO DO SENSOR DE TENSAO DA BATERIA DE POTENCIA
+float offset_cont=1.0;//VARIAVEL DE OFFSET DE TENSAO DO SENSOR DE TENSAO DA BATERIA DE CONTROLE
 float valorR1 = 30000.0; //VALOR DO RESISTOR 1 DO DIVISOR DE TENSÃO
 float valorR2 = 7500.0; // VALOR DO RESISTOR 2 DO DIVISOR DE TENSÃO
 int leituraSensor = 0; //VARIÁVEL PARA ARMAZENAR A LEITURA DO PINO ANALÓGICO
@@ -68,8 +68,8 @@ long t;
 float peso;
 
 //PARÂMETROS PARA O SENSOR DE TEMPERATURA LM35
-float temperatura; // Variável que armazenará a temperatura medida
-
+float temperatura; // Variável que armazenará a temperatura média medida
+float voltage_lm35; // Variável que coleta a saída de tensão do LM35
 
 //VARIÁVEIS CRIADAS PARA A SAÍDA DA PORTA SERIAL
 
@@ -79,6 +79,7 @@ float corrente_bateria_control;
 float corrente_bateria_potencia;
 float tensao_bateria_control; 
 float tensao_bateria_pot; 
+float temperatura_bateria;
 
 //FUNÇõES CRIADAS PARA CADA UM DOS SENSORES
   //PARA VERIFICAR CADA TENSÃO VÁ ATé O FINAL DO CODIGO
@@ -89,15 +90,16 @@ float sensor_corrente_potencia();
 float Load_Cell();
 float RPM_3144E();
 float sensor_corrente_controle();
-float temperatura_bateria();
+float temperatura_bateria_function();
 
 void setup() {
   //DEFINIÇÃO DO MODO DE CADA UM DOS PINOS DE INPUT
-  pinMode(c_sens, INPUT);
-  pinMode(Sensor_tensao_controle, INPUT); 
-  pinMode(Sensor_tensao_potencia, INPUT);
-  pinMode(Sensor_corrente_controle, INPUT);
-  
+  pinMode(c_sens, INPUT_PULLUP);
+  pinMode(Sensor_tensao_controle, INPUT_PULLUP); 
+  pinMode(Sensor_tensao_potencia, INPUT_PULLUP);
+  pinMode(Sensor_corrente_controle, INPUT_PULLUP);
+  pinMode(LM35, INPUT_PULLUP); //valor de pull-up médio 480
+  pinMode(pitot_tube_pin, INPUT_PULLUP);
   //PORTA SERIAL DEFINIDA COMO 9600 BPS
   Serial.begin(9600);
   delay(10);
@@ -142,28 +144,36 @@ void loop() {
   tensao_bateria_control = tensao_bateria_controle(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TENSÃO
   tensao_bateria_pot = tensao_bateria_potencia(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TENSÃO
   corrente_bateria_control = sensor_corrente_controle(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE CORRENTE
-  temperatura = temperatura_bateria(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TENSÃO
+  temperatura_bateria = temperatura_bateria_function(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TENSÃO
   corrente_bateria_potencia = sensor_corrente_potencia(); //EXTRAÇÃO DO VALOR DE SAÍDA DO SENSOR DE TEMPERATURA
 
   //COLOCANDO VARIÁVEIS NA PORTA SERIAL
   
-  Serial.print(massa);
-  Serial.print(",");
-  Serial.print(rotacao);
-  Serial.print(",");
-  Serial.print(velocidade);
-  Serial.print(",");
-  Serial.print(tensao_bateria_control);
-  Serial.print(",");
-  Serial.print(tensao_bateria_pot);
-  Serial.print(",");
-  Serial.print(corrente_bateria_control);
-  Serial.print(",");
-  Serial.print(temperatura);
-  Serial.print(",");
-  Serial.print(corrente_bateria_potencia);
-  Serial.print("\n");
-  delay(100);
+//    Serial.print(massa); //valor quando acionado o pull-up = -3689.77
+//    Serial.print(0);
+//    Serial.print(",");
+//    Serial.print(rotacao);//valor quando acionado o pull-up < 0
+//    Serial.print(0);
+//    Serial.print(",");
+//    Serial.print(velocidade);
+//    Serial.print(0);
+//    Serial.print(",");
+//    Serial.print(tensao_bateria_control); //valor quando acionado o pull-up = 23.63
+//    Serial.print(10);
+//    Serial.print(",");
+//    Serial.print(tensao_bateria_pot); //valor quando acionado o pull-up = 21.9
+//    Serial.print(18);
+//    Serial.print(",");
+//    Serial.print(corrente_bateria_control); //valor quando acionado o pull-up = 36.4
+//    Serial.print(0);
+//    Serial.print(",");
+//    Serial.print(temperatura_bateria); //valor quando acionado o pull-up = 485
+//    Serial.print(25);
+//    Serial.print(",");
+
+//    Serial.print(corrente_bateria_potencia); //valor quando acionado o pull-up = -59.36
+    Serial.print("\n");
+    delay(200);
 }
 float Load_Cell(){
 
@@ -261,17 +271,20 @@ float sensor_corrente_controle(){
   return Amps;
 }
 
-float temperatura_bateria(){
-  temperatura = (float(analogRead(LM35))*5/(1023))/0.01;
-  return temperatura;
-}
-
 float sensor_corrente_potencia(){
   QOV = quiescent_Output_voltage*5.0;
   cutoff = 0.04/cutOffLimit;
   volt = (5.0 / 1023.0)*analogRead(c_sens);
-  volt = volt - QOV + 0.007;
-  offset_corrente_pot = -2.00;
+  volt = volt - QOV - 0.067;
+  offset_corrente_pot = 0;
   c_value = (volt/0.04 - (offset_corrente_pot))*-1;
   return c_value;
+}
+
+
+float temperatura_bateria_function(){
+
+  voltage_lm35 = (float(analogRead(LM35))*5/1023)-0.0467;
+  temperatura = voltage_lm35/0.01;
+  return temperatura;
 }
