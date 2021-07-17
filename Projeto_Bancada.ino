@@ -54,9 +54,11 @@ int velocidade;
 
 //PARÂMETROS PARA O SENSOR DE ROTAÇÃO 3144E
 
-#define TEST_DELAY   999
-volatile int counter = 2;
-int RPM; //VARIÁVEL RPM
+float revolutions=0;
+int rpm=0; // max value 32,767 16 bit
+long  startTime=0;
+long  elapsedTime;
+
 
 //PARÂMETROS PARA O SENSOR DE MEDIÇÃO DE TORQUE (CÉLULA DE CARGA)
 
@@ -94,6 +96,7 @@ float temperatura_bateria_function();
 
 void setup() {
   //DEFINIÇÃO DO MODO DE CADA UM DOS PINOS DE INPUT
+  pinMode(2, INPUT_PULLUP);  
   pinMode(c_sens, INPUT_PULLUP);
   pinMode(Sensor_tensao_controle, INPUT_PULLUP); 
   pinMode(Sensor_tensao_potencia, INPUT_PULLUP);
@@ -103,13 +106,6 @@ void setup() {
   //PORTA SERIAL DEFINIDA COMO 9600 BPS
   Serial.begin(9600);
   delay(10);
-
-  //INTERRUPÇÃO SETADA PARA O SETOR DE ROTAÇÃO
-  attachInterrupt(0,count,RISING);
-  for (int ii=0; ii<offset_size; ii++){
-    offset += analogRead(A0)-(1023/2);
-  }
-  offset /= offset_size;
 
   //SETUP PARA A CÉLULA DE CARGA
   LoadCell.begin();
@@ -211,21 +207,25 @@ float Load_Cell(){
 }
 
 float RPM_3144E(){
-  //delay(1000);  //Delay almost 1 second.  
-  //Serial.print(counter * 60); // Counter * 60 seconds.
-  //Serial.println("rpm.");
+  revolutions=0; rpm=0;
+  startTime=millis();         
+  attachInterrupt(digitalPinToInterrupt(2),interruptFunction,RISING);
+  delay(1000);
+  detachInterrupt(2);                
   
-  RPM = (counter * 60);
-   
-  //lcd.print("Name");
-  counter = 0;
-  return RPM;
+  //now let's see how many counts we've had from the hall effect sensor and calc the RPM
+  elapsedTime=millis()-startTime;     //finds the time, should be very close to 1 sec
   
-}
+  if(revolutions>0)
+  {
+    rpm=(max(1, revolutions) * 60000) / elapsedTime;        //calculates rpm
+  }
+  return rpm;
+  }
 
-void count()
-{
- counter++;
+void interruptFunction() //interrupt service routine
+{  
+  revolutions++;
 }
 
 float pitot(){
@@ -284,7 +284,7 @@ float sensor_corrente_potencia(){
 
 float temperatura_bateria_function(){
 
-  voltage_lm35 = (float(analogRead(LM35))*5/1023)-0.0467;
+  voltage_lm35 = (float(analogRead(LM35))*5/1023);
   temperatura = voltage_lm35/0.01;
   return temperatura;
 }
